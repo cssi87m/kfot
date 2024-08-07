@@ -1,11 +1,6 @@
 import numpy as np 
 
 
-def l2(
-    x: np.ndarray, y: np.ndarray
-) -> np.ndarray:
-    return np.expand_dims((x**2).sum(axis=1),1) + np.expand_dims((y**2).sum(axis=1),0) - 2 * x@y.T
-
 def kl_div(
     x: np.ndarray, y: np.ndarray, 
     eps: float = 1e-10
