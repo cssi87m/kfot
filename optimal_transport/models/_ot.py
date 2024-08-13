@@ -29,7 +29,7 @@ class OT:
         xt: np.ndarray,
         **kwargs,
     ) -> np.ndarray:
-        assert self.P_ is not None, "Should run fit() before mapping"
+        assert self.P_ is not None, "Should run .fit() before mapping"
         return self.P_.dot(xt) / (self.P_.dot(np.ones((xt.shape[0], 1))) + self.div_term)
 
     def objective(self, **kwargs) -> np.ndarray:

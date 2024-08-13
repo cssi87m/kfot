@@ -65,7 +65,7 @@ def migrad(P, Kx, Ky):
     f_y = Ky.sum(1) / Ky.shape[1]
     f_x_f_y = np.outer(f_x, f_y)
     constC = np.zeros((len(Kx), len(Ky)))
-    # there's a negative sign in ot.gromov.tensor_product
+    # Negative sign in ot.gromov.tensor_product
     f_xy = -ot.gromov.tensor_product(constC, Kx, Ky, P)
     P_f_xy = P / f_xy
     P_grad = -ot.gromov.tensor_product(constC, Kx, Ky, P_f_xy)
@@ -136,9 +136,7 @@ class InfoOT(OT):
         Ct = self.dist_fn(xt, xt)
 
         if method not in ['conditional', 'barycentric']:
-            raise Exception('only suppot conditional or barycebtric projection')
-        if self.P_ is None:
-            raise Exception('please run .fit() to obtain transportation plan')
+            raise Exception('Only suppot conditional or barycebtric projection')
 
         P = self.P_
         if method == 'conditional':
