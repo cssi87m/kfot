@@ -10,7 +10,8 @@ class OfficeDataset(Dataset):
         self, 
         root_dir: str,
         metadata_file: str,
-        transform=None
+        transform=None,
+        **kwargs,
     ):
         self.data, self.target = [], []
         with open(metadata_file, "r") as f:
