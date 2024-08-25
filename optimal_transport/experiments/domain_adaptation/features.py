@@ -16,7 +16,7 @@ class FeatureExtractor(ConfigHandleable):
         self.model_config = self.load_config(model_config)
         self.device = self.model_config["device"] if torch.cuda.is_available() else "cpu"
         
-        self.model = self.parse_model(model_config)
+        self.model = self.parse_model(self.model_config["model"])
         self.model.eval()
         self.model = self.model.to(self.device)
     
@@ -26,8 +26,12 @@ class FeatureExtractor(ConfigHandleable):
         fp: Optional[str] = None,
         **kwargs
     ) -> torch.Tensor:
-        dataset = self.parse_dataset(data_config["dataset"])
-        dataloader = self.parse_dataloader(dataset, data_config["dataloader"])
+        dataset = self.parse_dataset(
+            data_config["dataset"], 
+            transforms=self.model_config["transforms"]
+        )
+        dataloader = self.parse_dataloader(
+            dataset, data_config["dataloader"])
 
         all_feats = []
         for _, (imgs, _) in tqdm(enumerate(dataloader)):
@@ -39,10 +43,8 @@ class FeatureExtractor(ConfigHandleable):
             try:
                 fp = data_config["features"]
             except KeyError:
-                pass
-        if fp is not None:
-            self.save_features(fp, feats)
-
+                return feats
+        self.save_features(fp, feats)
         return feats
 
     @classmethod 
