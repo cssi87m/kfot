@@ -1,0 +1,13 @@
+dataset:
+  type: "OfficeDataset"
+  args:
+    root_dir: "./data/office31"
+    annotation_file: "./data/office31/amazon.txt"
+
+dataloader:
+  batch_size: 32
+  shuffle: False
+  pin_memory: True
+  num_workers: 3
+
+features: ".data/office31/amazon.pkl"

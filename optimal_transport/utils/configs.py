@@ -77,12 +77,11 @@ class ConfigHandleable:
     @classmethod
     def parse_dataset(
         cls, config: Dict[str, Any], 
-        transforms: Optional[T.Compose] = None
+        transforms: Optional[Union[T.Compose, Dict[str, Any]]] = None
     ) -> Dataset:
-        if transforms is None and config["transforms"] is not None:
-            config["transforms"] = cls.parse_transforms(config["transforms"])
-        else:
-            config["transforms"] = transforms
+        if not isinstance(transforms, Dict):
+            transforms = cls.parse_transforms(transforms)
+        config["transforms"] = transforms
 
         dataset_module, dataset_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
         return getattr(dataset_module, dataset_cls, **config["args"])
