@@ -1,6 +1,6 @@
 from .._ot import OT
-from ...functional.distances import js_div
-from ...functional.ops import softmax
+from ...utils.distances import js_div
+from ...utils.ops import softmax
 
 from typing import Optional, List, Tuple, Callable
 import numpy as np
