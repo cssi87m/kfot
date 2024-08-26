@@ -6,8 +6,8 @@ dataset:
 
 dataloader:
   batch_size: 32
-  shuffle: False
-  pin_memory: True
+  shuffle: false
+  pin_memory: true
   num_workers: 3
 
 features: ".data/office31/amazon.pkl"
