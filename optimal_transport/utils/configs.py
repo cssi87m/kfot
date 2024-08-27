@@ -31,16 +31,16 @@ class ConfigHandleable:
             return fp
         ext = fp.split(".")[-1]
         if os.path.isfile(fp):
-            return getattr(cls, f"__load_{ext}")(fp)
+            return getattr(cls, f"_load_{ext}")(fp)
         return {}
     
     @classmethod
-    def __load_yml(cls, fp: str) -> Dict[str, Any]:
+    def _load_yml(cls, fp: str) -> Dict[str, Any]:
         with open(fp, "r") as f:
             data = yaml.safe_load(f)
         return data
     @classmethod
-    def __load_json(cls, fp: str) -> Dict[str, Any]:
+    def _load_json(cls, fp: str) -> Dict[str, Any]:
         with open(fp, "r") as f:
             data = json.load(f)
         return data
