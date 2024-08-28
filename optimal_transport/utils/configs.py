@@ -31,6 +31,23 @@ class ConfigHandleable:
 
     # --- config
     @classmethod
+    def save_config(
+        cls, obj: Dict, fp: str
+    ):
+        ext = fp.split(".")[-1]
+        if os.path.isfile(fp):
+            getattr(cls, f"_load_{ext}")(obj, fp)
+
+    @classmethod
+    def save_yml(cls, obj: Dict, fp: str):
+        with open(fp, 'w') as f:
+            yaml.dump(obj, f, default_flow_style=False)
+    @classmethod
+    def save_json(cls, obj: Dict, fp: str):
+        with open(fp, 'w') as f:
+            json.dump(obj, f, indent=4)
+
+    @classmethod
     def load_config(
         cls, fp: Union[str, Dict[str, Any]]
     ) -> Dict[str, Any]:
@@ -40,7 +57,7 @@ class ConfigHandleable:
         if os.path.isfile(fp):
             return getattr(cls, f"_load_{ext}")(fp)
         return {}
-    
+
     @classmethod
     def _load_yml(cls, fp: str) -> Dict[str, Any]:
         with open(fp, "r") as f:
