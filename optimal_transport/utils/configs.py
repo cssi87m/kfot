@@ -4,8 +4,14 @@ import os
 import sys
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
-import torchvision.transforms as T
 from typing import Dict, Optional, Any, Union, Tuple, Callable
+
+# for config abbreviation
+import torchvision.transforms as T
+import torchvision.transforms.functional as F
+import timm
+
+from ..experiments.domain_adaptation import *
 
 
 def split_attr(
@@ -99,7 +105,7 @@ class ConfigHandleable:
         cls, config: Dict[str, Any]
     ) -> nn.Module:
         model_module, model_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
-        return getattr(model_module, model_cls, **config["args"])
+        return getattr(model_module, model_cls)(**config["args"])
 
     
 

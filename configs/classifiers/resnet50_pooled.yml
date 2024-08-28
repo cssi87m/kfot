@@ -1,9 +1,10 @@
 model:
-  type: "timm.create_transform"
+  type: "timm.create_model"
   args:
     model_name: "resnet50"
     pretrained: true
     num_classes: 0
+    checkpoint_path: ""
   device: "gpu"
 
 transforms:
