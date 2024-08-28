@@ -34,7 +34,7 @@ class FeatureExtractor(ConfigHandleable):
             dataset, data_config["dataloader"])
 
         all_feats = []
-        for _, (imgs, _) in tqdm(enumerate(dataloader)):
+        for _, (imgs, _) in tqdm(enumerate(dataloader), total=len(dataloader)):
             feats = self.model(imgs.to(self.device))
             all_feats.append(feats.to("cpu"))
         all_feats = torch.concat(all_feats)
