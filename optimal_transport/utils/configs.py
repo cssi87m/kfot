@@ -11,6 +11,7 @@ import torchvision.transforms as T
 import torchvision.transforms.functional as F
 import timm
 
+from ..classifiers import *
 from ..experiments.domain_adaptation import *
 
 

@@ -6,15 +6,14 @@ class KNN:
         self.k = n_clusters
 
     def fit(
-        self, 
-        X: np.ndarray, y: np.ndarray,
+        self, X: np.ndarray, 
+        y: np.ndarray,
     ):
         self.X = X
         self.y = y
 
     def predict(
-        self, 
-        X: np.ndarray
+        self, X: np.ndarray
     ) -> np.ndarray:
         """
         K-Nearest Neighbors algorithm for classification.
@@ -37,3 +36,6 @@ class KNN:
         y_pred = np.argmax(counts, axis=0)
 
         return y_pred
+    
+def knn(n_clusters: int) -> KNN:
+    return KNN(n_clusters=n_clusters)
