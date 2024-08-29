@@ -6,6 +6,8 @@ from typing import Tuple
 import torchvision.transforms as T
 from typing import Optional
 
+from . import FeatureExtractor
+
 
 class OfficeDataset(Dataset):
     def __init__(
@@ -35,3 +37,25 @@ class OfficeDataset(Dataset):
 
     def __len__(self):
         return len(self.data)
+    
+    
+class OfficeFeature(Dataset):
+    def __init__(
+        self, 
+        feature_file: str,
+        annotation_file: str,
+        **kwargs
+    ):
+        super().__init__()
+        self.target = []
+        with open(annotation_file, "r") as f:
+            for line in f:
+                _, label = line.strip().split(' ')
+                self.target.append(int(label))
+        self.feature = FeatureExtractor.load_features(feature_file)
+    
+    def __len__(self) -> int:
+        return len(self.feature)
+    
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
+        return self.feature[index], self.target[index]
