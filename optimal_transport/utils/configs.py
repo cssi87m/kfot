@@ -3,12 +3,12 @@ import json
 import os
 import sys
 from torch import nn
+import torchvision.transforms as T
 from torch.utils.data import Dataset, DataLoader
 from typing import Dict, Optional, Any, Union, Tuple, Callable
 
 # for config abbreviation
-import torchvision.transforms as T
-import torchvision.transforms.functional as F
+import torchvision
 import timm
 
 from ..classifiers import *
@@ -56,7 +56,7 @@ class ConfigHandleable:
         ext = fp.split(".")[-1]
         if os.path.isfile(fp):
             return getattr(cls, f"_load_{ext}")(fp)
-        return {}
+        raise FileNotFoundError(f"{fp} cannot be found or a file.")
 
     @classmethod
     def _load_yml(cls, fp: str) -> Dict[str, Any]:
@@ -77,7 +77,7 @@ class ConfigHandleable:
     ) -> Callable:
         obj_module, transform_op = split_attr(transform_op)
         if transform_kwargs is None:
-            return getattr(obj_module, transform_op)
+            return getattr(obj_module, transform_op)()
         for arg in transform_kwargs:
             if isinstance(transform_kwargs[arg], str):
                 try:
@@ -85,14 +85,14 @@ class ConfigHandleable:
                     transform_kwargs[arg] = getattr(param_module, param_cls)
                 except:
                     continue
-        return getattr(obj_module, transform_op, **transform_kwargs)
+        return getattr(obj_module, transform_op)(**transform_kwargs)
     
     @classmethod
     def parse_transforms(
         cls, config: Dict[str, Any]
     ) -> T.Compose:
         transforms = []
-        for transform_op, transform_kwargs in config:
+        for transform_op, transform_kwargs in config.items():
             transforms.append(cls.parse_transform(
                 transform_op, transform_kwargs))
         return T.Compose(transforms)
@@ -103,12 +103,12 @@ class ConfigHandleable:
         cls, config: Dict[str, Any], 
         transforms: Optional[Union[T.Compose, Dict[str, Any]]] = None
     ) -> Dataset:
-        if not isinstance(transforms, Dict):
+        if isinstance(transforms, Dict):
             transforms = cls.parse_transforms(transforms)
-        config["transforms"] = transforms
+        config["args"]["transforms"] = transforms
 
         dataset_module, dataset_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
-        return getattr(dataset_module, dataset_cls, **config["args"])
+        return getattr(dataset_module, dataset_cls)(**config["args"])
 
     # --- dataloader
     @classmethod

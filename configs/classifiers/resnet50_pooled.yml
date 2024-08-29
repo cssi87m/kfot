@@ -1,21 +1,21 @@
+device: "cuda"
+
 model:
   type: "timm.create_model"
   args:
     model_name: "resnet50"
     pretrained: true
     num_classes: 0
-    checkpoint_path: ""
-  device: "gpu"
 
 transforms:
-  T.Resize: 
-    size: 235, 
-    interpolation: "bicubic"
+  torchvision.transforms.Resize: 
+    size: 235 
+    interpolation: 0
     max_size:
     antialias: true
-  T.CenterCrop: 
+  torchvision.transforms.CenterCrop: 
     size: [224, 224]
-  T.ToTensor: 
-  T.Normalize: 
+  torchvision.transforms.ToTensor: 
+  torchvision.transforms.Normalize: 
     mean: [0.4850, 0.4560, 0.4060]
     std: [0.2290, 0.2240, 0.2250]

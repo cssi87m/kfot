@@ -1,6 +1,10 @@
+import sys
+from os.path import dirname
 import os
 import argparse
-from tools import ROOT
+
+ROOT = dirname(dirname(sys.modules[__name__].__file__))
+sys.path.append(ROOT)
 
 from optimal_transport.experiments.domain_adaptation \
     import FeatureExtractor
@@ -26,7 +30,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_config', type=str, 
                         default=os.path.join(ROOT, "configs/classifiers/resnet50_pooled.yml"))
     parser.add_argument('--data_config', type=str, 
-                        default=os.path.join(ROOT, "configs/datasets/amazon.yml"))
+                        default=os.path.join(ROOT, "configs/datasets/office31/amazon.yml"))
     parser.add_argument('--feature_file', type=str, 
                         default=os.path.join(ROOT, "datasets/checkpoints/resnet50_amazon.pkl"))
     
