@@ -3,6 +3,8 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from typing import Tuple
+import torchvision.transforms as T
+from typing import Optional
 
 
 class OfficeDataset(Dataset):
@@ -10,7 +12,7 @@ class OfficeDataset(Dataset):
         self, 
         root_dir: str,
         annotation_file: str,
-        transforms=None,
+        transforms: Optional[T.Compose] = None,
         **kwargs,
     ):
         self.data, self.target = [], []

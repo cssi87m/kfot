@@ -26,6 +26,7 @@ class FeatureExtractor(ConfigHandleable):
         fp: Optional[str] = None,
         **kwargs
     ) -> torch.Tensor:
+        data_config = self.load_config(data_config)
         dataset = self.parse_dataset(
             data_config["dataset"], 
             transforms=self.model_config["transforms"]
@@ -41,7 +42,7 @@ class FeatureExtractor(ConfigHandleable):
 
         if fp is None:
             try:
-                fp = data_config["features"]
+                fp = data_config["feature"]
             except KeyError:
                 return feats
         self.save_features(fp, feats)
