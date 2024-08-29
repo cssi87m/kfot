@@ -9,6 +9,7 @@ from typing import Dict, Optional, Any, Union, Tuple, Callable
 
 # for config abbreviation
 import torchvision
+import torch
 import timm
 
 from ..classifiers import *
@@ -124,6 +125,27 @@ class ConfigHandleable:
     ) -> nn.Module:
         model_module, model_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
         return getattr(model_module, model_cls)(**config["args"])
+    
+    # --- loss
+    @classmethod
+    def parse_loss(
+        cls, config: Dict[str, Any]
+    ) -> Callable:
+        if config["args"] is None:
+            config["args"] = {}
+        loss_module, loss_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
+        return getattr(loss_module, loss_cls)(**config["args"])
+
+    @classmethod
+    def parse_optimizer(
+        cls, config: Dict[str, Any],
+        model_params: Any
+    ) -> torch.optim.Optimizer:
+        if config["args"] is None:
+            config["args"] = {}
+        optim_module, optim_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
+        return getattr(optim_module, optim_cls)(model_params, **config["args"])
+        
 
     
 
