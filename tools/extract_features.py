@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('--data_config', type=str, 
                         default=os.path.join(ROOT, "configs/datasets/office31/amazon.yml"))
     parser.add_argument('--feature_file', type=str, 
-                        default=os.path.join(ROOT, "datasets/checkpoints/resnet50_amazon.pkl"))
+                        default=os.path.join(ROOT, "data/features/resnet50_office31_amazon.pkl"))
     
     args = parser.parse_args()
 

@@ -36,14 +36,14 @@ class ConfigHandleable:
     ):
         ext = fp.split(".")[-1]
         if os.path.isfile(fp):
-            getattr(cls, f"_load_{ext}")(obj, fp)
+            getattr(cls, f"_save_{ext}")(obj, fp)
 
     @classmethod
-    def save_yml(cls, obj: Dict, fp: str):
+    def _save_yml(cls, obj: Dict, fp: str):
         with open(fp, 'w') as f:
             yaml.dump(obj, f, default_flow_style=False)
     @classmethod
-    def save_json(cls, obj: Dict, fp: str):
+    def _save_json(cls, obj: Dict, fp: str):
         with open(fp, 'w') as f:
             json.dump(obj, f, indent=4)
 
