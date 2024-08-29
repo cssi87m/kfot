@@ -8,4 +8,11 @@ dataset:
     annotation_file: /HDD4T/minhnt425/ot/kfot/data/office31/amazon.txt
     root_dir: /HDD4T/minhnt425/ot/kfot/data/office31
   type: OfficeDataset
+loss:
+  type: torch.nn.CrossEntropyLoss
+  args: 
+optimizer:
+  type: torch.optim.Adam
+  args:
+    lr: 0.00001
 feature: /HDD4T/minhnt425/ot/kfot/data/features/resnet50_office31_amazon.pkl
