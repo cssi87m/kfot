@@ -1,0 +1,21 @@
+device: "cuda"
+
+model:
+  type: "timm.create_model"
+  args:
+    model_name: "vit_base_patch16_224"
+    pretrained: true
+    num_classes: 0
+
+transforms:
+  torchvision.transforms.Resize: 
+    size: 235 
+    interpolation: 0
+    max_size:
+    antialias: true
+  torchvision.transforms.CenterCrop: 
+    size: [224, 224]
+  torchvision.transforms.ToTensor: 
+  torchvision.transforms.Normalize: 
+    mean: [0.4850, 0.4560, 0.4060]
+    std: [0.2290, 0.2240, 0.2250]
