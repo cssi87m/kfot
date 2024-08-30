@@ -8,4 +8,4 @@ dataset:
     annotation_file: /HDD4T/minhnt425/ot/kfot/data/office31/dslr.txt
     root_dir: /HDD4T/minhnt425/ot/kfot/data/office31
   type: OfficeDataset
-feature: /HDD4T/minhnt425/ot/kfot/data/features/resnet50_office31_dslr.pkl
+feature: /HDD4T/minhnt425/ot/kfot/data/features/vit_base_patch16_224_office31_amazon.pkl
