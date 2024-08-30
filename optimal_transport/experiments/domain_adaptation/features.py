@@ -4,6 +4,7 @@ import pickle as pkl
 from typing import Dict, Any, Union, Optional
 
 from ...utils.configs import ConfigHandleable
+from .utils import save_features, load_features
 
 
 class FeatureExtractor(ConfigHandleable):
@@ -51,16 +52,12 @@ class FeatureExtractor(ConfigHandleable):
 
     @classmethod 
     def save_features(
-        cls, fp: str,
-        feats: torch.Tensor
+        cls, fp: str,feats: torch.Tensor
     ):
-        with open(fp, "wb") as f:
-            pkl.dump(feats, f)
+        save_features(fp, feats)
 
     @classmethod
     def load_features(
         cls, fp: str,
     ) -> torch.Tensor:
-        with open(fp, 'rb') as f:
-            feats = pkl.load(f)
-        return feats
+        load_features(fp)

@@ -6,7 +6,7 @@ from typing import Tuple
 import torchvision.transforms as T
 from typing import Optional
 
-from . import FeatureExtractor
+from .utils import load_features
 
 
 class OfficeDataset(Dataset):
@@ -38,7 +38,7 @@ class OfficeDataset(Dataset):
     def __len__(self):
         return len(self.data)
     
-    
+   
 class OfficeFeature(Dataset):
     def __init__(
         self, 
@@ -52,7 +52,7 @@ class OfficeFeature(Dataset):
             for line in f:
                 _, label = line.strip().split(' ')
                 self.target.append(int(label))
-        self.feature = FeatureExtractor.load_features(feature_file)
+        self.feature = load_features(feature_file)
     
     def __len__(self) -> int:
         return len(self.feature)
