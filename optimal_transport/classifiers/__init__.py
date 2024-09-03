@@ -1,2 +1,2 @@
 from .knn import knn
-from .chenxi_mlp import mnist_chenxi_mlp
+from .chenxi_mlp import chenxi_mlp, ChenXiMLP

@@ -1,0 +1,9 @@
+num_epochs: 50
+valid_freq: 10
+loss:
+  args: null
+  type: torch.nn.CrossEntropyLoss
+optimizer:
+  args:
+    lr: 1.0e-04
+  type: torch.optim.Adam
