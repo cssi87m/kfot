@@ -1,7 +1,10 @@
 import torch
 import numpy as np
 from tqdm import tqdm
-from typing import Dict, Any, Union, Optional
+import os
+import wandb
+import copy
+from typing import Dict, Any, Union, Optional, Tuple
 
 from .utils import load_features
 from .datasets import OfficeFeature
@@ -11,8 +14,9 @@ from ...utils.configs import ConfigHandleable
 
 
 class DomainAdaptationEngine(ConfigHandleable):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        # init wandb
+        self.logger = wandb.init(project="kfot", group="domain_adaptation")
 
     def __call__(self):
         # TODO: train on source
@@ -25,43 +29,45 @@ class DomainAdaptationEngine(ConfigHandleable):
     def train(
         self,
         model_config: Union[Dict[str, Any], str],
-        source_config: Union[Dict[str, Any], str],
-        target_config: Union[Dict[str, Any], str],
+        data_config: Union[Dict[str, Any], str],
         engine_config: Union[Dict[str, Any], str],
+        ckpt_path: str,
         **kwargs
     ):
         # load configs
-        source_config = self.__validate_config(source_config)
-        target_config = self.__validate_config(target_config)
+        data_config = self.__validate_config(data_config)
         engine_config = self.__validate_config(engine_config)
 
         # create datasets and dataloaders
-        source_dataset = OfficeFeature(source_config["feature"], source_config["args"]["annotation_file"])
-        target_dataset = OfficeFeature(target_config["feature"], target_config["args"]["annotation_file"]) 
-        source_dataloader = self.parse_dataloader(source_dataset, source_config["dataloader"])
-        target_dataloader = self.parse_dataloader(target_dataset, target_config["dataloader"])
-
-        assert source_dataset.feature.shape[1] == target_dataset.feature.shape[1], "Two feature sets must share the same dimensions."
+        dataset = OfficeFeature(data_config["feature"], data_config["args"]["annotation_file"])
+        dataloader = self.parse_dataloader(dataset, data_config["dataloader"])
 
         # setup device
         device = model_config["device"] if torch.cuda.is_available() else "cpu"
 
         # create models
         if model_config["model"]["type"] == "chenxi_mlp":
-            model_config["model"]["args"]["input_dims"] = source_dataset.feature.shape[1]
+            model_config["model"]["args"]["input_dims"] = dataset.feature.shape[1]
         model = self.parse_model(model_config["model"]).to(device)
         model.train()
 
-        # create loss and optimizer
+        # create loss and optimizer/scheduler
         optimizer = self.parse_optimizer(engine_config["optimizer"], model.parameters())
+        scheduler = self.parse_scheduler(engine_config["scheduler"], optimizer)
         criterion = self.parse_loss(engine_config["loss"])
 
-        for epoch in (pbar := tqdm(range(engine_config["num_epochs"]), total=engine_config["num_epochs"])):
-            num_corrects, total_images = 0, 0
-            for _, (features, labels) in source_dataloader:
+        # load checkpoint (if had)
+        start_epoch, model, optimizer, scheduler = self.load_checkpoint(
+            ckpt_path, model, optimizer, scheduler
+        )
+
+        num_corrects, total_images = 0, 0
+        for epoch in (pbar := tqdm(range(start_epoch, engine_config["num_epochs"]), 
+                                   total=engine_config["num_epochs"])):
+            for _, (features, labels) in enumerate(dataloader):
                 outputs = model(features.to(device))
                 _, preds = torch.max(outputs, 1)
-                loss = criterion(outputs, labels)
+                loss: torch.Tensor = criterion(outputs, labels)
 
                 loss.backward()
                 optimizer.step()
@@ -69,13 +75,56 @@ class DomainAdaptationEngine(ConfigHandleable):
                 num_corrects += torch.sum(preds == labels)
                 total_images += len(features)
                 pbar.set_postfix({"accuracy": num_corrects / total_images})
+                self.logger.log({"accuracy": num_corrects / total_images})
+            scheduler.step()
 
             if epoch % engine_config["valid_freq"] == 0:
-                # evaluate
-                pass
+                torch.save(dict(
+                    model=model.state_dict(),
+                    optimizer=optimizer.state_dict(),
+                    scheduler=scheduler.state_dict(),
+                    config=model_config,
+                    epoch=epoch,
+                    metric={"accuracy": num_corrects / total_images}
+                ), ckpt_path)
 
-    def evaluate(self):
-        pass
+    def evaluate(
+        self,
+        model_config: Union[Dict[str, Any], str],
+        data_config: Union[Dict[str, Any], str],
+        ckpt_path: str,
+        **kwargs
+    ):
+        # load configs
+        data_config = self.__validate_config(data_config)
+
+        # create datasets and dataloaders
+        dataset = OfficeFeature(data_config["feature"], data_config["args"]["annotation_file"])
+        dataloader = self.parse_dataloader(dataset, data_config["dataloader"])
+
+        # setup device
+        device = model_config["device"] if torch.cuda.is_available() else "cpu"
+
+        # create models
+        if model_config["model"]["type"] == "chenxi_mlp":
+            model_config["model"]["args"]["input_dims"] = dataset.feature.shape[1]
+        model = self.parse_model(model_config["model"]).to(device)
+        model.eval()
+
+        # load checkpoint (if had)
+        _, model, optimizer, scheduler = self.load_checkpoint(
+            ckpt_path, model, optimizer, scheduler
+        )
+
+        num_corrects, total_images = 0, 0
+        for _, (features, labels) in (pbar := tqdm(enumerate(dataloader), total=len(dataloader))):
+            outputs = model(features.to(device))
+            _, preds = torch.max(outputs, 1)
+
+            num_corrects += torch.sum(preds == labels)
+            total_images += len(features)
+            self.logger.log({"accuracy": num_corrects / total_images})
+            pbar.set_postfix({"accuracy": num_corrects / total_images})
 
     def adapt_domain(
         self,
@@ -101,3 +150,32 @@ class DomainAdaptationEngine(ConfigHandleable):
         if isinstance(config, str):
             config = self.load_config(config)
         return config
+    
+    @classmethod
+    def load_checkpoint(
+        cls,
+        ckpt_path: str,
+        model: torch.nn.Module,
+        optimizer: Optional[torch.optim.Optimizer] = None, 
+        scheduler: Optional[torch.optim.lr_scheduler.LRScheduler] = None, 
+        **kwargs
+    ) -> Tuple[int, torch.nn.Module, Optional[torch.optim.Optimizer], 
+               Optional[torch.optim.lr_scheduler.LRScheduler]]:
+        if not (os.path.isfile(ckpt_path) \
+                and ckpt_path.split(".")[-1] == "pth"):
+            return 0, model, optimizer, scheduler
+        
+        ckpt = torch.load(ckpt_path, map_location="cpu")
+        try:
+            model = model.load_state_dict(ckpt["model"])
+        except:
+            model = cls.parse_model(ckpt["config"])
+            model = model.load_state_dict(ckpt["model"])
+        if optimizer:
+            optimizer = optimizer.load_state_dict(ckpt["optimizer"])
+        if scheduler:
+            scheduler = scheduler.load_state_dict(ckpt["scheduler"])
+
+        return ckpt["epoch"], model, optimizer, scheduler
+
+

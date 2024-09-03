@@ -2,6 +2,7 @@ import yaml
 import json
 import os
 import sys
+import copy
 from torch import nn
 import torchvision.transforms as T
 from torch.utils.data import Dataset, DataLoader
@@ -131,21 +132,38 @@ class ConfigHandleable:
     def parse_loss(
         cls, config: Dict[str, Any]
     ) -> Callable:
-        if config["args"] is None:
-            config["args"] = {}
+        config = cls.__normalize_config_args(config)
         loss_module, loss_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
         return getattr(loss_module, loss_cls)(**config["args"])
 
+    # --- optimizer
     @classmethod
     def parse_optimizer(
         cls, config: Dict[str, Any],
         model_params: Any
     ) -> torch.optim.Optimizer:
-        if config["args"] is None:
-            config["args"] = {}
+        config = cls.__normalize_config_args(config)
         optim_module, optim_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
         return getattr(optim_module, optim_cls)(model_params, **config["args"])
-        
+    
+    # --- scheduler
+    @classmethod
+    def parse_scheduler(
+        cls, config: Dict[str, Any],
+        optimizer: torch.optim.Optimizer,
+    ) -> torch.optim.lr_scheduler.LRScheduler:
+        config = cls.__normalize_config_args(config)
+        scheduler_module, scheduler_cls = split_attr(config["type"], cls.DEFAULT_MODULE)
+        return getattr(scheduler_module, scheduler_cls)(optimizer=optimizer, **config["args"])
+    
+    @classmethod
+    def __normalize_config_args(
+        cls, config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        config = copy.deepcopy(config)
+        if config["args"] is None:
+            config["args"] = {}
+        return config
 
     
 

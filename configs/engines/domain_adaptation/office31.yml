@@ -5,5 +5,10 @@ loss:
   type: torch.nn.CrossEntropyLoss
 optimizer:
   args:
-    lr: 1.0e-04
+    lr: 1.0e-03
   type: torch.optim.Adam
+scheduler:
+  type: "torch.optim.lr_scheduler.StepLR"
+  parameter:
+    step_size: 10
+    gamma: 0.7
