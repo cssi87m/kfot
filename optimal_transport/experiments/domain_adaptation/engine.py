@@ -1,13 +1,15 @@
 import torch
+from torch import nn
 import numpy as np
 from tqdm import tqdm
 import os
 import wandb
 import copy
+from torch.utils.data import ConcatDataset, DataLoader
 from typing import Dict, Any, Union, Optional, Tuple
 
 from .utils import load_features
-from .datasets import OfficeFeature
+from .datasets import FeatureDataset
 from ...classifiers import ChenXiMLP
 from ...adapters._ot import OT
 from ...utils.configs import ConfigHandleable
@@ -18,48 +20,32 @@ class DomainAdaptationEngine(ConfigHandleable):
         # init wandb
         self.logger = wandb.init(project="kfot", group="domain_adaptation")
 
-    def __call__(self):
+    def __call__(
+        self,
+        model_config: Union[Dict[str, Any], str],
+        source_config: Union[Dict[str, Any], str],
+        target_config: Union[Dict[str, Any], str],
+        engine_config: Union[Dict[str, Any], str],
+        ckpt_path: str,
+    ):
         # TODO: train on source
         # TODO: fine-tune on target data (partly)
         # TODO: adapt source to target
         # TODO: (re) fine-tune on source (adapted) + target (partly)
 
-        pass
+        self.train(ckpt_path, model_config, engine_config, target_config, source_config)
 
     def train(
         self,
-        model_config: Union[Dict[str, Any], str],
-        data_config: Union[Dict[str, Any], str],
-        engine_config: Union[Dict[str, Any], str],
         ckpt_path: str,
+        model_config: Union[Dict[str, Any], str],
+        engine_config: Union[Dict[str, Any], str],
+        *data_configs: Union[Dict[str, Any], str],
         **kwargs
     ):
-        # load configs
-        data_config = self.__validate_config(data_config)
-        engine_config = self.__validate_config(engine_config)
-
-        # create datasets and dataloaders
-        dataset = OfficeFeature(data_config["feature"], data_config["args"]["annotation_file"])
-        dataloader = self.parse_dataloader(dataset, data_config["dataloader"])
-
-        # setup device
-        device = model_config["device"] if torch.cuda.is_available() else "cpu"
-
-        # create models
-        if model_config["model"]["type"] == "chenxi_mlp":
-            model_config["model"]["args"]["input_dims"] = dataset.feature.shape[1]
-        model = self.parse_model(model_config["model"]).to(device)
+        dataloader, model, (start_epoch, optimizer, scheduler, criterion), device = \
+            self.__setup_resources(ckpt_path, model_config, engine_config, *data_configs)
         model.train()
-
-        # create loss and optimizer/scheduler
-        optimizer = self.parse_optimizer(engine_config["optimizer"], model.parameters())
-        scheduler = self.parse_scheduler(engine_config["scheduler"], optimizer)
-        criterion = self.parse_loss(engine_config["loss"])
-
-        # load checkpoint (if had)
-        start_epoch, model, optimizer, scheduler = self.load_checkpoint(
-            ckpt_path, model, optimizer, scheduler
-        )
 
         num_corrects, total_images = 0, 0
         for epoch in (pbar := tqdm(range(start_epoch, engine_config["num_epochs"]), 
@@ -90,31 +76,15 @@ class DomainAdaptationEngine(ConfigHandleable):
 
     def evaluate(
         self,
-        model_config: Union[Dict[str, Any], str],
-        data_config: Union[Dict[str, Any], str],
         ckpt_path: str,
+        model_config: Union[Dict[str, Any], str],
+        engine_config: Union[Dict[str, Any], str],
+        *data_configs: Union[Dict[str, Any], str],
         **kwargs
     ):
-        # load configs
-        data_config = self.__validate_config(data_config)
-
-        # create datasets and dataloaders
-        dataset = OfficeFeature(data_config["feature"], data_config["args"]["annotation_file"])
-        dataloader = self.parse_dataloader(dataset, data_config["dataloader"])
-
-        # setup device
-        device = model_config["device"] if torch.cuda.is_available() else "cpu"
-
-        # create models
-        if model_config["model"]["type"] == "chenxi_mlp":
-            model_config["model"]["args"]["input_dims"] = dataset.feature.shape[1]
-        model = self.parse_model(model_config["model"]).to(device)
+        dataloader, model, (start_epoch, optimizer, scheduler, criterion), device = \
+            self.__setup_resources(ckpt_path, model_config, engine_config, *data_configs)
         model.eval()
-
-        # load checkpoint (if had)
-        _, model, optimizer, scheduler = self.load_checkpoint(
-            ckpt_path, model, optimizer, scheduler
-        )
 
         num_corrects, total_images = 0, 0
         for _, (features, labels) in (pbar := tqdm(enumerate(dataloader), total=len(dataloader))):
@@ -142,6 +112,47 @@ class DomainAdaptationEngine(ConfigHandleable):
         adapter.fit(source_features, target_features, a=1/n*np.ones(n), b=1/m*np.ones(m), **kwargs)
         return adapter.transport(source_features, target_features)
 
+
+    def __setup_resources(
+        self,
+        ckpt_path: str, 
+        model_config: Union[Dict[str, Any], str],
+        engine_config: Union[Dict[str, Any], str],
+        *data_configs: Union[Dict[str, Any], str],
+        **kwargs
+    ) -> Tuple[DataLoader, nn.Module, Tuple[int, torch.nn.Module, Optional[torch.optim.Optimizer], 
+               Optional[torch.optim.lr_scheduler.LRScheduler]], str]:
+        # load configs
+        engine_config = self.__validate_config(engine_config)
+
+        # create datasets and dataloaders
+        datasets = []
+        for data_config in data_configs:
+            data_config = self.__validate_config(data_config)
+            dataset = FeatureDataset(data_config["feature"], data_config["args"]["annotation_file"])
+            datasets.append(dataset)
+        dataset = ConcatDataset(datasets)
+        dataloader = self.parse_dataloader(dataset, engine_config["train"]["dataloader"])
+
+        # setup device
+        device = model_config["device"] if torch.cuda.is_available() else "cpu"
+
+        # create models
+        if model_config["model"]["type"] == "chenxi_mlp":
+            model_config["model"]["args"]["input_dims"] = dataset.feature.shape[1]
+        model = self.parse_model(model_config["model"]).to(device)
+
+        # create loss and optimizer/scheduler
+        optimizer = self.parse_optimizer(engine_config["optimizer"], model.parameters())
+        scheduler = self.parse_scheduler(engine_config["scheduler"], optimizer)
+        criterion = self.parse_loss(engine_config["loss"])
+
+        # load checkpoint (if had)
+        start_epoch, model, optimizer, scheduler = self.load_checkpoint(
+            ckpt_path, model, optimizer, scheduler
+        )
+
+        return dataloader, model, (start_epoch, optimizer, scheduler, criterion), device
 
     def __validate_config(
         self, 

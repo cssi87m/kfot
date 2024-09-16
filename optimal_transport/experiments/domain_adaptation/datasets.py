@@ -39,7 +39,7 @@ class OfficeDataset(Dataset):
         return len(self.data)
     
    
-class OfficeFeature(Dataset):
+class FeatureDataset(Dataset):
     def __init__(
         self, 
         feature_file: str,

@@ -1,8 +1,3 @@
-dataloader:
-  batch_size: 32
-  num_workers: 3
-  pin_memory: true
-  shuffle: false
 dataset:
   args:
     annotation_file: /HDD4T/minhnt425/ot/kfot/data/office31/amazon.txt

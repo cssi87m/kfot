@@ -12,3 +12,14 @@ scheduler:
   parameter:
     step_size: 10
     gamma: 0.7
+dataloader:
+  train:
+    batch_size: 32
+    num_workers: 3
+    pin_memory: true
+    shuffle: false
+  eval:
+    batch_size: 32
+    num_workers: 3
+    pin_memory: true
+    shuffle: true
