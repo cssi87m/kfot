@@ -44,18 +44,25 @@ class FeatureDataset(Dataset):
         self, 
         feature_file: str,
         annotation_file: str,
+        sample_size: Tuple[float] = (0, 1),
         **kwargs
     ):
         super().__init__()
-        self.target = []
+        self.targets = []
         with open(annotation_file, "r") as f:
             for line in f:
                 _, label = line.strip().split(' ')
-                self.target.append(int(label))
-        self.feature = load_features(feature_file)
+                self.targets.append(int(label))
+        self.features = load_features(feature_file)
+
+        indices = torch.randperm(len(self.features))[
+                int(len(self.features)*sample_size[0]):
+                int(len(self.features)*sample_size[1])]
+        self.features = self.features[indices]
+        self.targets = self.features[indices]
     
     def __len__(self) -> int:
-        return len(self.feature)
+        return len(self.features)
     
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
-        return self.feature[index], self.target[index]
+        return self.features[index], self.targets[index]

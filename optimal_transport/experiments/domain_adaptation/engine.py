@@ -22,25 +22,53 @@ class DomainAdaptationEngine(ConfigHandleable):
 
     def __call__(
         self,
+        adapter: OT,
         model_config: Union[Dict[str, Any], str],
         source_config: Union[Dict[str, Any], str],
         target_config: Union[Dict[str, Any], str],
         engine_config: Union[Dict[str, Any], str],
         ckpt_path: str,
     ):
-        # TODO: train on source
-        # TODO: fine-tune on target data (partly)
-        # TODO: adapt source to target
-        # TODO: (re) fine-tune on source (adapted) + target (partly)
+        # DONE: train on source
+        # DONE: adapt source to target
+        # DONE: (re) fine-tune on source (adapted) + target (partly)
 
-        self.train(ckpt_path, model_config, engine_config, target_config, source_config)
+        # train on source data
+        self.train(
+            ckpt_path, "source", model_config, engine_config, 
+            source_config)
+        self.evaluate(
+            ckpt_path, model_config, engine_config, 
+            source_config)
+        
+        # split target data
+        lb_target_config = copy.deepcopy(target_config)
+        lb_target_config["sample_size"] = (0, engine_config["task"]["target"]["sample_size"])
+        ulb_target_config = copy.deepcopy(target_config)
+        ulb_target_config["sample_size"] = (engine_config["task"]["target"]["sample_size"], 1)
+
+        self.evaluate(
+            ckpt_path, model_config, engine_config, 
+            ulb_target_config)
+        
+        # adapt source to target data
+        adapted_dataset = self.adapt_domain(adapter, 
+            source_config["feature"], target_config["feature"])
+        
+        # fine-tune on the adapted and target data
+        self.train(
+            ckpt_path, "target", model_config, engine_config, 
+            adapted_dataset)
+        self.evaluate(
+            ckpt_path, "target", model_config, engine_config, 
+            ulb_target_config)
 
     def train(
         self,
-        ckpt_path: str,
+        ckpt_path: str, mode: str,
         model_config: Union[Dict[str, Any], str],
         engine_config: Union[Dict[str, Any], str],
-        *data_configs: Union[Dict[str, Any], str],
+        *data_configs: Union[Dict[str, Any], str, FeatureDataset],
         **kwargs
     ):
         dataloader, model, (start_epoch, optimizer, scheduler, criterion), device = \
@@ -48,8 +76,8 @@ class DomainAdaptationEngine(ConfigHandleable):
         model.train()
 
         num_corrects, total_images = 0, 0
-        for epoch in (pbar := tqdm(range(start_epoch, engine_config["num_epochs"]), 
-                                   total=engine_config["num_epochs"])):
+        for epoch in (pbar := tqdm(range(start_epoch, engine_config[mode]["num_epochs"]), 
+                                   total=engine_config[mode]["num_epochs"])):
             for _, (features, labels) in enumerate(dataloader):
                 outputs = model(features.to(device))
                 _, preds = torch.max(outputs, 1)
@@ -64,7 +92,7 @@ class DomainAdaptationEngine(ConfigHandleable):
                 self.logger.log({"accuracy": num_corrects / total_images})
             scheduler.step()
 
-            if epoch % engine_config["valid_freq"] == 0:
+            if epoch % engine_config["save_freq"] == 0:
                 torch.save(dict(
                     model=model.state_dict(),
                     optimizer=optimizer.state_dict(),
@@ -76,14 +104,14 @@ class DomainAdaptationEngine(ConfigHandleable):
 
     def evaluate(
         self,
-        ckpt_path: str,
+        ckpt_path: str, mode: str,
         model_config: Union[Dict[str, Any], str],
         engine_config: Union[Dict[str, Any], str],
-        *data_configs: Union[Dict[str, Any], str],
+        *data_configs: Union[Dict[str, Any], str, FeatureDataset],
         **kwargs
     ):
-        dataloader, model, (start_epoch, optimizer, scheduler, criterion), device = \
-            self.__setup_resources(ckpt_path, model_config, engine_config, *data_configs)
+        dataloader, model, _, device = \
+            self.__setup_resources(ckpt_path, mode, model_config, engine_config, *data_configs)
         model.eval()
 
         num_corrects, total_images = 0, 0
@@ -99,26 +127,30 @@ class DomainAdaptationEngine(ConfigHandleable):
     def adapt_domain(
         self,
         adapter: OT,
-        source_features: Union[str, np.ndarray],
-        target_features: Union[str, np.ndarray],
+        source_config: Union[Dict[str, Any], str],
+        target_config: Union[Dict[str, Any], str],
         **kwargs
-    ) -> np.ndarray:
-        if isinstance(source_features, str):
-            source_features = np.array(load_features(source_features))
-        if isinstance(target_features, str):
-            target_features = np.array(load_features(target_features))
+    ) -> FeatureDataset:
+        source_config = self.__validate_config(source_config)
+        target_config = self.__validate_config(target_config)
+
+        source_dataset = FeatureDataset(source_config["feature"], **source_config["args"])
+        target_dataset = FeatureDataset(target_config["feature"], **target_config["args"])
+        source_features = np.array(source_dataset.features)
+        target_features = np.array(target_dataset.features)
 
         n, m = source_features.shape[0], target_features.shape[0]
         adapter.fit(source_features, target_features, a=1/n*np.ones(n), b=1/m*np.ones(m), **kwargs)
-        return adapter.transport(source_features, target_features)
+        source_dataset.features = adapter.transport(source_features, target_features)
 
+        return ConcatDataset([source_dataset, target_dataset])
 
     def __setup_resources(
         self,
-        ckpt_path: str, 
+        ckpt_path: str, mode: str,
         model_config: Union[Dict[str, Any], str],
         engine_config: Union[Dict[str, Any], str],
-        *data_configs: Union[Dict[str, Any], str],
+        *data_configs: Union[Dict[str, Any], str, FeatureDataset],
         **kwargs
     ) -> Tuple[DataLoader, nn.Module, Tuple[int, torch.nn.Module, Optional[torch.optim.Optimizer], 
                Optional[torch.optim.lr_scheduler.LRScheduler]], str]:
@@ -128,11 +160,12 @@ class DomainAdaptationEngine(ConfigHandleable):
         # create datasets and dataloaders
         datasets = []
         for data_config in data_configs:
-            data_config = self.__validate_config(data_config)
-            dataset = FeatureDataset(data_config["feature"], data_config["args"]["annotation_file"])
+            if not isinstance(data_config, FeatureDataset): 
+                data_config = self.__validate_config(data_config)
+                dataset = FeatureDataset(data_config["feature"], **data_config["args"])
             datasets.append(dataset)
         dataset = ConcatDataset(datasets)
-        dataloader = self.parse_dataloader(dataset, engine_config["train"]["dataloader"])
+        dataloader = self.parse_dataloader(dataset, engine_config["dataloader"])
 
         # setup device
         device = model_config["device"] if torch.cuda.is_available() else "cpu"
@@ -143,8 +176,8 @@ class DomainAdaptationEngine(ConfigHandleable):
         model = self.parse_model(model_config["model"]).to(device)
 
         # create loss and optimizer/scheduler
-        optimizer = self.parse_optimizer(engine_config["optimizer"], model.parameters())
-        scheduler = self.parse_scheduler(engine_config["scheduler"], optimizer)
+        optimizer = self.parse_optimizer(engine_config[mode]["optimizer"], model.parameters())
+        scheduler = self.parse_scheduler(engine_config[mode]["scheduler"], optimizer)
         criterion = self.parse_loss(engine_config["loss"])
 
         # load checkpoint (if had)
@@ -182,10 +215,17 @@ class DomainAdaptationEngine(ConfigHandleable):
         except:
             model = cls.parse_model(ckpt["config"])
             model = model.load_state_dict(ckpt["model"])
+        
         if optimizer:
-            optimizer = optimizer.load_state_dict(ckpt["optimizer"])
+            try:
+                optimizer = optimizer.load_state_dict(ckpt["optimizer"])
+            except:
+                pass
         if scheduler:
-            scheduler = scheduler.load_state_dict(ckpt["scheduler"])
+            try:
+                scheduler = scheduler.load_state_dict(ckpt["scheduler"])
+            except:
+                pass
 
         return ckpt["epoch"], model, optimizer, scheduler
 
