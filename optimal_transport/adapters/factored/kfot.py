@@ -34,12 +34,13 @@ class KFOT(OT):
         self.Pi_: List[Optional[np.ndarray]] = [None, None]
         self.z_: Optional[np.ndarray] = None
         
-
     def fit(
         self,
         xs: np.ndarray, xt: np.ndarray, 
         a: Optional[np.ndarray], b: Optional[np.ndarray], 
-        K: List[Tuple], **kwargs,
+        K: Optional[List[Tuple]], 
+        ys: np.ndarray, yt: np.ndarray,  
+        **kwargs,
     ) -> "KFOT":
         z, h = self._init_anchors(xs, self.k + len(K))
         I, L, J = self._init_keypoint_inds(K)
@@ -78,9 +79,9 @@ class KFOT(OT):
         Cy = self.Pi_[1].dot(xt) / (self.Pi_[1].dot(np.ones((m, 1))) + self.div_term)
         return xs + np.dot(self.Pi_[0] / np.sum(self.Pi_[0], axis=1).reshape([n, 1]), Cy - Cx)
 
+
     def _init_keypoint_inds(
-        self,
-        K: List[Tuple]
+        self, K: List[Tuple]
     ) -> Tuple[np.ndarray]:
         I = np.array([pair[0] for pair in K])
         J = np.array([pair[1] for pair in K])

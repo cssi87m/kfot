@@ -45,9 +45,13 @@ class FeatureDataset(Dataset):
         feature_file: str,
         annotation_file: str,
         sample_size: Tuple[float] = (0, 1),
+        seed: int = 42,
         **kwargs
     ):
         super().__init__()
+        manual_generator = torch.Generator()
+        manual_generator.manual_seed(seed)
+
         self.targets = []
         with open(annotation_file, "r") as f:
             for line in f:
@@ -55,7 +59,8 @@ class FeatureDataset(Dataset):
                 self.targets.append(int(label))
         self.features = load_features(feature_file)
 
-        indices = torch.randperm(len(self.features))[
+        indices = torch.randperm(
+            len(self.features), generator=manual_generator)[
                 int(len(self.features)*sample_size[0]):
                 int(len(self.features)*sample_size[1])]
         self.features = self.features[indices]

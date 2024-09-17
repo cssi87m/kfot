@@ -6,7 +6,7 @@ import os
 import wandb
 import copy
 from torch.utils.data import ConcatDataset, DataLoader
-from typing import Dict, Any, Union, Optional, Tuple
+from typing import Dict, Any, Union, Optional, Tuple, List
 
 from .utils import load_features
 from .datasets import FeatureDataset
@@ -49,9 +49,14 @@ class DomainAdaptationEngine(ConfigHandleable):
 
         self.evaluate(
             ckpt_path, model_config, engine_config, 
-            ulb_target_config)
+            target_config)
         
         # adapt source to target data
+        lb_target_config = self.__validate_config(lb_target_config)
+        lb_target_dataset = FeatureDataset(lb_target_config["feature"], **lb_target_config["args"])
+        
+        # TODO: extract indices of keypoints from labeled target data
+
         adapted_dataset = self.adapt_domain(adapter, 
             source_config["feature"], target_config["feature"])
         
@@ -61,7 +66,7 @@ class DomainAdaptationEngine(ConfigHandleable):
             adapted_dataset)
         self.evaluate(
             ckpt_path, "target", model_config, engine_config, 
-            ulb_target_config)
+            target_config)
 
     def train(
         self,
@@ -129,6 +134,7 @@ class DomainAdaptationEngine(ConfigHandleable):
         adapter: OT,
         source_config: Union[Dict[str, Any], str],
         target_config: Union[Dict[str, Any], str],
+        lb_target_ratio: float,
         **kwargs
     ) -> FeatureDataset:
         source_config = self.__validate_config(source_config)
@@ -143,7 +149,19 @@ class DomainAdaptationEngine(ConfigHandleable):
         adapter.fit(source_features, target_features, a=1/n*np.ones(n), b=1/m*np.ones(m), **kwargs)
         source_dataset.features = adapter.transport(source_features, target_features)
 
-        return ConcatDataset([source_dataset, target_dataset])
+        return source_dataset
+    
+    def __setup_keypoints(
+        self, x: np.ndarray, y: Optional[np.ndarray] = None,
+        n_shot: int = 1
+    ) -> List[int]:
+        labels = np.unique(y)
+        selected_inds = []
+        for label in labels:
+            cls_indices = np.where(y == label)[0]
+            distance = self.dist_fn(x[cls_indices], np.mean(x[cls_indices], axis=0)[None, :]).squeeze()
+            selected_inds.extend(cls_indices[np.argsort(distance)[:n_shot]])
+        return selected_inds
 
     def __setup_resources(
         self,

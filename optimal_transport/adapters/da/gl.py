@@ -24,8 +24,8 @@ class GlOTDA(OT):
     def fit(
         self,
         xs: np.ndarray, xt: np.ndarray,
-        ys: np.ndarray,
         a: Optional[np.ndarray], b: Optional[np.ndarray],
+        ys: np.ndarray,
         **kwargs,
     ) -> "GlOTDA":
         C = self.dist_fn(xs, xt)
