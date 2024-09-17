@@ -55,15 +55,19 @@ class DomainAdaptationEngine(ConfigHandleable):
         lb_target_config = self.__validate_config(lb_target_config)
         lb_target_dataset = FeatureDataset(lb_target_config["feature"], **lb_target_config["args"])
         
-        # TODO: extract indices of keypoints from labeled target data
+        K = self.__setup_keypoints(
+            np.array(lb_target_dataset.features), 
+            np.array(lb_target_dataset.targets),
+            n_shot=engine_config["task"]["n_shot"]
+        )
 
-        adapted_dataset = self.adapt_domain(adapter, 
-            source_config["feature"], target_config["feature"])
+        adapted_source_dataset = self.adapt_domain(adapter, 
+            source_config["feature"], target_config["feature"], K=K)
         
         # fine-tune on the adapted and target data
         self.train(
             ckpt_path, "target", model_config, engine_config, 
-            adapted_dataset)
+            adapted_source_dataset, lb_target_dataset)
         self.evaluate(
             ckpt_path, "target", model_config, engine_config, 
             target_config)
@@ -134,7 +138,6 @@ class DomainAdaptationEngine(ConfigHandleable):
         adapter: OT,
         source_config: Union[Dict[str, Any], str],
         target_config: Union[Dict[str, Any], str],
-        lb_target_ratio: float,
         **kwargs
     ) -> FeatureDataset:
         source_config = self.__validate_config(source_config)
@@ -146,13 +149,14 @@ class DomainAdaptationEngine(ConfigHandleable):
         target_features = np.array(target_dataset.features)
 
         n, m = source_features.shape[0], target_features.shape[0]
-        adapter.fit(source_features, target_features, a=1/n*np.ones(n), b=1/m*np.ones(m), **kwargs)
+        adapter.fit(source_features, target_features, 
+                    a=1/n*np.ones(n), b=1/m*np.ones(m), **kwargs)
         source_dataset.features = adapter.transport(source_features, target_features)
 
         return source_dataset
     
     def __setup_keypoints(
-        self, x: np.ndarray, y: Optional[np.ndarray] = None,
+        self, x: np.ndarray, y: np.ndarray = None,
         n_shot: int = 1
     ) -> List[int]:
         labels = np.unique(y)

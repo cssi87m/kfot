@@ -23,6 +23,7 @@ task:
   target:
     sample_size: 0.2
     num_epochs: 25
+    n_shot: 1
     optimizer:
       args:
         lr: 1.0e-04
